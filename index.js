@@ -1,20 +1,18 @@
 const bridge = require('./src/bridge')
+const lightBuilder = require('./src/light')
 
 async function main(){
     let hue = await bridge.connectToBridge();
 
     lights = []
     
-    await hue.groups.getGroupByName('My Room')
+    await hue.groups.getGroupByName(process.env.ROOM_NAME)
     .then(matchedGroups => { matchedGroups.forEach(group => {
       lights = group.lights;
     });
   });
 
-  hue.lights.setLightState(lights[0], {on: false})
-  .then(result => {
-    console.log(`Light state change was successful? ${result}`);
-  })
+  lightBuilder.lightHandler(hue, lights, 'beige');
 
 }
   

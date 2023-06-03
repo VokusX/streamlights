@@ -7,7 +7,7 @@ const deviceName = 'myroomlights';
 
 async function connectToBridge() {
     // local IP addresss for bridge
-    const ipAddress = '192.168.0.11'
+    const ipAddress = process.env.IP
 
     // Create a new API instance that is authenticated with the new user we created
     const authenticatedApi = await hueApi.createLocal(ipAddress).connect(process.env.HUE_USER);
