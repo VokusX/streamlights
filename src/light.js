@@ -5,10 +5,17 @@ const hue = require('node-hue-api').v3, hueApi = hue.api;
 function createLightState(colour) {
     // accept hex if starting with # or keyword
     if (colour[0] == '#'){
-        return {on: true, rgb: convert.hex.rgb(colour.substring(1))}
+        let c = convert.hex.rgb(colour.substring(1));
+        if (!c)
+            throw new Error('Not a valid colour input')
+        return {on: true, rgb: c}
     }
-    else
-        return {on: true, rgb: convert.keyword.rgb(colour)}
+    else {
+        let c = convert.keyword.rgb(colour);
+        if (!c)
+            throw new Error('Not a valid colour input')
+        return {on: true, rgb: c}
+    }
 }
 
 async function lightHandler(hue, lights, input) {
@@ -16,6 +23,8 @@ async function lightHandler(hue, lights, input) {
         hue.lights.setLightState(light, createLightState(input))
         .then(result => {
             console.log(`Light state change to ${input} was successful? ${result}`);
+        }).catch(error => {
+            throw new Error(`Error on setting lights: ${error}`);
         })
     }
   }

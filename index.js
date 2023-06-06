@@ -1,5 +1,4 @@
 const bridge = require('./src/bridge')
-const lightBuilder = require('./src/light')
 const stream = require('./src/stream')
 
 async function main(){
@@ -11,13 +10,13 @@ async function main(){
 
     lights = []
     
-    await hue.groups.getGroupByName(process.env.ROOM_NAME)
-    .then(matchedGroups => { matchedGroups.forEach(group => {
-      lights = group.lights;
+    await hue.groups.getGroupByName(process.env.ROOM_NAME).then(matchedGroups => 
+    { matchedGroups.forEach(group => {
+        lights = group.lights;
+      });
     });
-  });
-  // lightBuilder.lightHandler(hue, lights, 'white');
 
+    stream.initHueForStream(hue, lights);
 }
   
 main().catch(console.log);

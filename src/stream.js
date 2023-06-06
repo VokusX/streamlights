@@ -3,70 +3,68 @@ const Auth = require('@twurple/auth');
 const Api = require('@twurple/api');
 const EventSub = require('@twurple/eventsub-ws');
 const axios = require('axios')
+const lightBuilder = require('./light')
+const bridge = require('./bridge')
 
 require('dotenv').config();
 
-clientId = process.env.TWITCH_CLIENTID;
-clientSecret = process.env.TWITCH_APPSECRET;
+let hue;
+let lights;
 
-tokenData = {
-	"accessToken": `${process.env.TWITCH_USERTOKEN}`,
-	"refreshToken": `${process.env.TWITCH_REFRESHTOKEN}`,
-	"expiresIn": 0,
-	"obtainmentTimestamp": 0
+const clientId = process.env.TWITCH_CLIENTID;
+const userId = process.env.TWITCH_CHANNELID;
+const rewardId = process.env.REWARD_ID;
+
+const authProvider = new Auth.StaticAuthProvider(clientId, process.env.TWITCH_USERTOKEN);
+
+const apiClient = new Api.ApiClient({ authProvider });
+
+function initHueForStream(h, l) {
+  hue = h;
+  lights = l;
 }
-
-const authProvider = new Auth.RefreshingAuthProvider(
-	{
-		clientId,
-		clientSecret,
-		onRefresh: async (newTokenData) => tokenData = newTokenData
-	}
-);
-
-authProvider.addUser(process.env.TWITCH_CHANNELID, tokenData);
-
-console.log(tokenData)
 
 async function validateToken() {
-    let r
+  let r;
+  try {
     await axios.get('https://id.twitch.tv/oauth2/validate', {
-        headers: {
-            "Authorization": `Bearer ${process.env.TWITCH_USERTOKEN}`
-        }
-    })
-      .then(function (response) {
+      headers: {
+          "Authorization": `Bearer ${process.env.TWITCH_USERTOKEN}`
+      }}).then(function (response) {
         r = response;
       })
-      .catch(function (error) {
-        console.log('Invalid token. Please get a new token using twitch token -u -s "channel:manage:redemptions". Error: ', error)
-        return false
-      });
+  }
+  catch (error) {
+      console.log('Invalid token. Please get a new token using twitch token -u -s "channel:manage:redemptions channel:read:redemptions"')
+      return false
+  };
 
-    if(r.data.scopes.indexOf("channel:manage:redemptions") == -1 || !r.data.hasOwnProperty('user_id')){
-        console.log('Invalid scopes. Please get a new token using twitch token -u -s "channel:manage:redemptions"')
-        return false
-    }
-
-    return true
+  if(r.data.scopes.indexOf("channel:manage:redemptions") == -1 || !r.data.hasOwnProperty('user_id')){
+      console.log('Invalid scopes. Please get a new token using twitch token -u -s "channel:manage:redemptions channel:read:redemptions"')
+      return false
+  }
+  console.log('Valid token.')
+  return true
 }
 
-module.exports = {validateToken}
-// const redirectUri = 'http://localhost:3000'; // must match one of the URLs in the dev console exactly
-// const tokenData = await Auth.exchangeCode(clientId, clientSecret, code, redirectUri);
+const listener = new EventSub.EventSubWsListener({ apiClient });
+listener.start();
 
-// const clientId = process.env.TWITCH_CLIENTID;
-// const userId = process.env.TWITCH_CHANNELID;
+const lightReward = listener.onChannelRedemptionAddForReward(userId, rewardId, async redemption => {
+  // call lights to parse user input
+  try {
+    // change lights
+    await lightBuilder.lightHandler(hue, lights, redemption.input);
 
-// const apiClient = new Api.ApiClient({ authProvider });
+    // mark redemption complete
+    await apiClient.channelPoints.updateRedemptionStatusByIds(userId, rewardId, [redemption.id], 'FULFILLED');
+    console.log(`Fulfilled redemption for id: ${redemption.id}`)
+  } catch (error) {
+    // on error reject redemption
+    await apiClient.channelPoints.updateRedemptionStatusByIds(userId, rewardId, [redemption.id], 'CANCELED');
+    console.log(`Cancelled redemption for id: ${redemption.id} on error ${error}`)
+  }
+});
 
-// const listener = new EventSub.EventSubWsListener({ apiClient });
-// listener.start();
 
-// const onlineSubscription = listener.onStreamOnline(userId, e => {
-// 	console.log(`${e.broadcasterDisplayName} just went live!`);
-// });
-
-// const offlineSubscription = listener.onStreamOffline(userId, e => {
-// 	console.log(`${e.broadcasterDisplayName} just went offline`);
-// });
+module.exports = {validateToken, initHueForStream}
