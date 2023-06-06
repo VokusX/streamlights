@@ -1,101 +1,72 @@
 // Logic for the twitch pubsub connection
-const WebSocket = require('ws');
+const Auth = require('@twurple/auth');
+const Api = require('@twurple/api');
+const EventSub = require('@twurple/eventsub-ws');
+const axios = require('axios')
 
-const WS_URL = 'wss://pubsub-edge.twitch.tv';
-let ws = new WebSocket(WS_URL);
+require('dotenv').config();
 
-// generate tokens here https://twitchtokengenerator.com/
+clientId = process.env.TWITCH_CLIENTID;
+clientSecret = process.env.TWITCH_APPSECRET;
 
-HandlePingPong();
-
-ws.on('open', function open() {
-    console.log(`Connection established to ${WS_URL}. Setting everything up...`);
-    ListenToTopic([`channel-points-channel-v1.${process.env.CHANNEL_ID}`, `channel-bits-events-v2.${process.env.CHANNEL_ID}`], process.env.TOKEN);
-});
-
-ws.on('message', function incoming(message) {
-    HandleMessage(message);
-});
-
-function ForceReconnect()
-{
-    console.log("Reconnecting...");
-    ws.terminate();
-    ws = new WebSocket(WS_URL);
+tokenData = {
+	"accessToken": `${process.env.TWITCH_USERTOKEN}`,
+	"refreshToken": `${process.env.TWITCH_REFRESHTOKEN}`,
+	"expiresIn": 0,
+	"obtainmentTimestamp": 0
 }
 
-function HandleMessage(message)
-{
-    message = JSON.parse(message);
+const authProvider = new Auth.RefreshingAuthProvider(
+	{
+		clientId,
+		clientSecret,
+		onRefresh: async (newTokenData) => tokenData = newTokenData
+	}
+);
 
-    if (message.type == "RECONNECT")
-    {
-        console.log("RECONNECT message received")
-        ForceReconnect();
-    }
-    else if (message.type == "PONG")
-    {
-        awaiting_pong = false;
-    }
-    else if (message.type == "RESPONSE")
-    {
-        if (message.error)
-        {
-            console.error(message.error);
+authProvider.addUser(process.env.TWITCH_CHANNELID, tokenData);
+
+console.log(tokenData)
+
+async function validateToken() {
+    let r
+    await axios.get('https://id.twitch.tv/oauth2/validate', {
+        headers: {
+            "Authorization": `Bearer ${process.env.TWITCH_USERTOKEN}`
         }
-        else
-        {
-            console.log("All set up! We're good to go!")
-        }
+    })
+      .then(function (response) {
+        r = response;
+      })
+      .catch(function (error) {
+        console.log('Invalid token. Please get a new token using twitch token -u -s "channel:manage:redemptions". Error: ', error)
+        return false
+      });
+
+    if(r.data.scopes.indexOf("channel:manage:redemptions") == -1 || !r.data.hasOwnProperty('user_id')){
+        console.log('Invalid scopes. Please get a new token using twitch token -u -s "channel:manage:redemptions"')
+        return false
     }
-    else if (message.type == "MESSAGE")
-    {
-        // An event occurred, so let's handle it
-        message.data.message = JSON.parse(message.data.message)
-        Handlers.HandleMessage(message.data.message);
-    }
+
+    return true
 }
 
-function ListenToTopic(topics, auth_token)
-{
-    const data = 
-    {
-        "type": "LISTEN",
-        "data": {
-          "topics": topics,
-          "auth_token": auth_token
-        }
-    }
-    ws.send(JSON.stringify(data));
-}
+module.exports = {validateToken}
+// const redirectUri = 'http://localhost:3000'; // must match one of the URLs in the dev console exactly
+// const tokenData = await Auth.exchangeCode(clientId, clientSecret, code, redirectUri);
 
-let awaiting_pong = false;
+// const clientId = process.env.TWITCH_CLIENTID;
+// const userId = process.env.TWITCH_CHANNELID;
 
-// Must ping the server within 5 minutes to keep the connection alive
-function HandlePingPong()
-{
-    setInterval(() => {
+// const apiClient = new Api.ApiClient({ authProvider });
 
-        if (ws.readyState == 2 || ws.readyState == 3)
-        {
-            // Websocket is closing, let's reconnect instead
-            ForceReconnect();
-        }
-        else
-        {
-            ws.send(JSON.stringify({
-                "type": "PING"
-            }));
-            awaiting_pong = true;
+// const listener = new EventSub.EventSubWsListener({ apiClient });
+// listener.start();
 
-            // Response not received in time
-            setTimeout(() => {
-                if (awaiting_pong)
-                {
-                    awaiting_pong = false;
-                    ForceReconnect();
-                }
-            }, 1000 * 15);
-        }
-    }, 1000 * 60 * 3);
-}
+// const onlineSubscription = listener.onStreamOnline(userId, e => {
+// 	console.log(`${e.broadcasterDisplayName} just went live!`);
+// });
+
+// const offlineSubscription = listener.onStreamOffline(userId, e => {
+// 	console.log(`${e.broadcasterDisplayName} just went offline`);
+// });

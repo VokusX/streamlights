@@ -1,8 +1,13 @@
 const bridge = require('./src/bridge')
 const lightBuilder = require('./src/light')
+const stream = require('./src/stream')
 
 async function main(){
     let hue = await bridge.connectToBridge();
+
+    if (await stream.validateToken() == false) {
+      return;
+    }
 
     lights = []
     
@@ -11,8 +16,7 @@ async function main(){
       lights = group.lights;
     });
   });
-
-  lightBuilder.lightHandler(hue, lights, 'beige');
+  // lightBuilder.lightHandler(hue, lights, 'white');
 
 }
   
