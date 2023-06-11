@@ -4,7 +4,10 @@ const hue = require('node-hue-api').v3, hueApi = hue.api;
 
 function createLightState(colour) {
     // accept hex if starting with # or keyword
-    if (colour[0] == '#'){
+    if (colour == 'off') {
+        return {on: false}
+    }
+    else if (colour[0] == '#'){
         let c = convert.hex.rgb(colour.substring(1));
         if (!c)
             throw new Error('Not a valid colour input')
