@@ -17,6 +17,9 @@ async function main(){
     });
 
     stream.initHueForStream(hue, lights);
+
+    // check token is valid every hour (usually last 4 hours or so)
+    setInterval(() => stream.validateToken(), 1000 * 60 * 60);
 }
   
 main().catch(console.log);
